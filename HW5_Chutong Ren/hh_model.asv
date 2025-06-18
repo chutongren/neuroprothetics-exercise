@@ -1,0 +1,149 @@
+%------------------Exercise 4 hh_model template---------------------------%
+%   Term:   WS2020/2021
+%   Date:   22.11.2020
+%-------------------------------------------------------------------------%   
+function [V,gates,I_ions,t] = hh_model(I_stim,t_end,dt,T,V_rest)
+% this function simulates a Hodgkin Huxley neuron model
+%
+%   Inputs:
+%       I_stim:     stimulation current as a vector
+%       t_end:      simulation duration in s
+%       dt:         time step in s
+%       T:          simulation temperature in °C
+%       V_rest:     membrane resting potential in V
+%   Outputs:
+%       V:          membrane potentials as a vector
+%       gates:      gating variables in a 3xlength(t) matrix form, rows being m - n - h
+%       I_ions:     ion currents in a 3xlength(t) matrix form: rows being i_na - i_k - i_l
+%       t:          time vector
+%
+%% 1) Definitions
+
+% running time
+t = 0 : dt : t_end-dt;
+
+% Vector definitions
+V = zeros(100,length(t));
+gates = zeros(100,3);
+rates=zeros(100,6);
+I_ions = zeros(100,3);
+I_HH=zeros(100,1);
+
+
+%% 2) Parameters and Equations
+% Define constants 
+%   conductances in S
+%   Nernst Potentials in V
+%   Membrane Capacitance in F
+% Insert your code here:
+g_Na=120e-3;
+g_K=36e-3;
+g_L=0.3e-3;
+V_Na=115e-3;
+V_K=-12e-3;
+V_L=10.6e-3;
+V_rest=0;
+C_m=1e-6;
+
+K=3^(0.1*(T-6.3));
+rou_axon=10;
+r_axon=2e-4;
+l_comp=0.5e-4;
+Ra=*rou_axon*l_comp/(pi*((r_axon)^2));
+
+a=(-2)*ones(1,100);
+b=ones(1,99);
+C=diag(a)+diag(b,1)+diag(b,-1);
+C(1,1)=1;
+C(100,100)=1;
+
+
+
+
+
+% Define Voltage ODE
+% Utilize function handles for this (and the rate equations). 
+%       Example: to declare a square function:
+%       sqr = @(n) n.^2
+%       To use the function handle:
+%       x = sqr(n)
+% Insert your code here:
+
+% V_next=@(I_Na,I_K,I_L,I_sti,initial)  ((-(I_Na+I_K+I_L)+I_sti)*dt/C_m)+initial;% initial is the precious value of V
+
+% Define rate equations
+%   alpha and beta equations for m,n,h 
+% Insert your code here:
+a_m=@(V)1000.*(2.5-100*V)./(exp(2.5-100.*V)-1);
+a_n=@(V)1000.*(0.1-10.*V)./(exp(1-100.*V)-1);
+a_h=@(V)70.*exp(-50.*V);
+b_m=@(V)4000.*exp(-500.*V/9);
+b_n=@(V)125.*exp(-25.*V/2);
+b_h=@(V)1000./(exp(3-100.*V)+1);
+
+% m=@(m_initial)(a_m*(1-m_initial)-b_m*m_initial)*K*dt+m_initial;
+% n=@(n_initial)(a_n*(1-n_initial)-b_n*n_initial)*K*dt+n_initial;
+% h=@(h_initial)(a_h*(1-h_initial)-b_h*h_initial)*K*dt+h_initial;
+syms m n h;
+
+
+
+%% 3) Initial calculations
+% Initialize voltage: first Value has to be set to membrane resting
+% potential
+% Insert your code here:
+i=1;
+V(:,1)=V_rest;
+
+%这么说这些都不用，直接调用hh current计算下一次的Iion
+
+% calculate the initial rates alpha, beta for m,n,h
+% Insert your code here:
+rates(:,i)=a_m(V(:,1));         %calculate am,bm
+rates(:,2)=b_m(V(:,1));
+rates(:,3)=a_n(V(:,1));
+rates(:,4)=b_n(V(:,1));
+rates(:,5)=a_h(V(:,1));
+rates(:,6)=b_h(V(:,1));
+% Calculate initial Gating variables m,n,h using steady-state equations
+% Insert your code here:
+eqm=(rates(:,1).*(1-m)-rates(:,2).*m).*K==0;      %calculate m,n,h  as initial wert the m n h follow the steady state equation
+gates(:,1)=solve(eqm,m);
+
+eqn=(rates(:,3).*(1-n)-rates(:,4).*n).*K==0;
+gates(:,2)=solve(eqn,n);
+
+eqh=(rates(:,5).*(1-h)-rates(:,6)*h)*K==0;
+gates(:,3)=solve(eqh,h);
+
+% calculate first ionic currents 
+% Insert your code here:
+%按照本题性质，这个计算的是第二次的Iion
+I_ions(:,1)=g_Na.*(gates(:,1).^3).*gates(:,3).*(V(:,i)-V_Na);      %calculate I_Na, I_k, I_L
+I_ions(:,2)=g_K.*(gates(:,2).^4).*(V(:,i)-V_K);
+I_ions(:,3)=g_L*(V(:,1)-V_L);
+
+% % use forward euler solver to calculate the second voltage value
+% % Insert your code here:
+% % V(2)=V_next(I_ions(1,i),I_ions(2,i),I_ions(3,i),I_stim(1),V(1));
+
+%% 4) Iterative calculation of the membrane potential
+for n = 1 :3999
+ 
+    % obtain the ion channel currents
+    % You can change the function parameters to for example also include the
+    % constants and rate equations or you can define them again inside the
+    % hh_current function
+    %注意，在这个题目里面，gates，rates，iions和iionsum都是一次性的，都计算的是下一次的I,n=1的时候计算的是2的gate，rate等等
+    [gates,I_HH] = hh_current(V(:,n), dt, gates, T);   %这些都是I2
+   
+    % calculate the next membrane potential using forward euler solver
+    % Insert your code here:
+   
+    %V(n+1)=V_next(I_ions(1,n),I_ions(2,n),I_ions(3,n),I_stim,V(n)) ;
+  V(:,n+1)=implicit_euler(V(:,n),I_HH,I_stim(:,n+1),Ra,C,C_m,dt);    %计算V2（用I2 Istim2的数据来计算）
+ 
+  test=n
+ end
+plot(t,V);
+end
